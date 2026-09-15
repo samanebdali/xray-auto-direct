@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "pinned_direct_suffixes": [
+    "paypal.com",
+    "paypalobjects.com",
+    "visa.com",
+    "mastercard.com",
+    "stripe.com",
+    "wise.com"
+  ],
+  "pinned_warp_suffixes": [
+    "openai.com",
+    "chatgpt.com",
+    "oaistatic.com",
+    "oaiusercontent.com"
+  ],
+  "manual_direct_suffixes": []
+}
