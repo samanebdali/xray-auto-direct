@@ -49,10 +49,7 @@ ACCESS_LOG="${XRAY_ACCESS_LOG:-/var/log/x-ui/access.log}"
 note "Checking live routing prerequisites (read-only)"
 "$XRAY_BIN" api lsrules -s 127.0.0.1:62789 -t 3 >/dev/null ||
   die "Xray RoutingService is unavailable on 127.0.0.1:62789; enable it before installing."
-discovery="$(XRAY_AUTODIRECT_PRIMARY_WARP_TAG="$PRIMARY_WARP_OVERRIDE" XRAY_AUTODIRECT_INBOUND_TAG="$ACCESS_INBOUND_OVERRIDE" python3 - "$ACTIVE_CFG" <<'PY'
-import json, os, re, sys
-cfg=json.load(open(sys.argv[1]))
-safe=re.compile(r'^[A-Za-z0-9._-]{1,128}python3 - "$ACTIVE_CFG" "$DB" <<'PY'
+python3 - "$ACTIVE_CFG" "$DB" <<'PY'
 import json, sqlite3, sys
 cfg=json.load(open(sys.argv[1]))
 if not any(r.get("outboundTag")=="direct" and isinstance(r.get("domain"),list)
@@ -82,7 +79,10 @@ finally:
     con.close()
 PY
 
-note "Installing small prerequisites"
+discovery="$(XRAY_AUTODIRECT_PRIMARY_WARP_TAG="$PRIMARY_WARP_OVERRIDE" XRAY_AUTODIRECT_INBOUND_TAG="$ACCESS_INBOUND_OVERRIDE" python3 - "$ACTIVE_CFG" <<'PY'
+import json, os, re, sys
+cfg=json.load(open(sys.argv[1]))
+safe=re.compile(r'^[A-Za-z0-9._-]{1,128}
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq ca-certificates curl python3 >/dev/null
@@ -276,23 +276,17 @@ req=os.environ.get('XRAY_AUTODIRECT_PRIMARY_WARP_TAG','')
 if req:
     if req not in outs: raise SystemExit('requested primary WARP tag is not a WireGuard outbound in active config')
     warp=req
-elif 'warp' in outs:
-    warp='warp'
-elif len(outs)==1:
-    warp=outs[0]
-else:
-    raise SystemExit('no unambiguous primary user WARP outbound found; create one in 3x-ui or pass --primary-warp-tag TAG')
+elif 'warp' in outs: warp='warp'
+elif len(outs)==1: warp=outs[0]
+else: raise SystemExit('no unambiguous primary user WARP outbound found; create one in 3x-ui or pass --primary-warp-tag TAG')
 ins=[x.get('tag','') for x in cfg.get('inbounds',[]) if x.get('tag')!='api' and isinstance(x.get('tag'),str)]
 req=os.environ.get('XRAY_AUTODIRECT_INBOUND_TAG','')
 if req:
     if req not in ins: raise SystemExit('requested inbound tag is absent from active config')
     inbound=req
-elif 'inbound-80' in ins:
-    inbound='inbound-80'
-elif len(ins)==1:
-    inbound=ins[0]
-else:
-    raise SystemExit('no unambiguous user inbound found; pass --inbound-tag TAG')
+elif 'inbound-80' in ins: inbound='inbound-80'
+elif len(ins)==1: inbound=ins[0]
+else: raise SystemExit('no unambiguous user inbound found; pass --inbound-tag TAG')
 if not safe.fullmatch(warp) or not safe.fullmatch(inbound): raise SystemExit('unsafe Xray tag')
 print('PRIMARY_WARP_TAG='+warp)
 print('ACCESS_INBOUND_TAG='+inbound)
@@ -306,35 +300,6 @@ while IFS='=' read -r key value; do
 done <<<"$discovery"
 [[ -n "${PRIMARY_WARP_TAG:-}" && -n "${ACCESS_INBOUND_TAG:-}" ]] || die "primary WARP/inbound discovery returned no tags"
 note "Using user inbound [$ACCESS_INBOUND_TAG] and primary WARP [$PRIMARY_WARP_TAG]"
-python3 - "$ACTIVE_CFG" "$DB" <<'PY'
-import json, sqlite3, sys
-cfg=json.load(open(sys.argv[1]))
-if not any(r.get("outboundTag")=="direct" and isinstance(r.get("domain"),list)
-           for r in cfg.get("routing",{}).get("rules",[])):
-    raise SystemExit("supported Direct domain rule is missing from active Xray config")
-con=sqlite3.connect(sys.argv[2])
-try:
-    legacy=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='routing_rules'").fetchone()
-    if legacy:
-        raise SystemExit("unsupported panel database layout: this v1 release targets MHSanaei/3x-ui, not legacy Alireza x-ui")
-    rows=con.execute("SELECT value FROM settings WHERE key='xrayTemplateConfig' ORDER BY id").fetchall()
-    if len(rows)>1:
-        raise SystemExit("xrayTemplateConfig has duplicate rows; refusing an ambiguous migration")
-    if not rows:
-        # 3x-ui's shipped default template is available in memory but may not
-        # have a SQLite row yet. The installer will persist an exact copy of
-        # the already-running validated config, after creating a DB backup.
-        print("template_bootstrap_required=1")
-    else:
-        db=json.loads(rows[0][0])
-        persisted=any(r.get("outboundTag")=="direct" and isinstance(r.get("domain"),list)
-                      for r in db.get("routing",{}).get("rules",[]))
-        if not persisted:
-            raise SystemExit("supported Direct domain rule is missing from persistent 3x-ui template")
-        print("template_bootstrap_required=0")
-finally:
-    con.close()
-PY
 
 note "Installing small prerequisites"
 export DEBIAN_FRONTEND=noninteractive
