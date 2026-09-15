@@ -72,8 +72,8 @@ def main():
                     "peers": [peer_cfg],
                     "mtu": int(interface.get("MTU", fallback="1280")),
                     "noKernelTun": True,
+                    "domainStrategy": "ForceIPv4",
                 },
-                "streamSettings": {"sockopt": {"domainStrategy": "ForceIPv4"}},
             }],
             "routing": {
                 "domainStrategy": "AsIs",
