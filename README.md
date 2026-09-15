@@ -1,54 +1,59 @@
 # Xray Auto-Direct v1
 
-A safety-first routing controller being engineered for **MHSanaei/3x-ui** deployments that use Cloudflare WARP as the primary outbound and a stable Direct egress as fallback.
+A safety-first routing controller for **MHSanaei/3x-ui** on Ubuntu 22.04/24.04.
 
-> Status: installer implementation is present, but the first release is not yet certified. The current stable 3x-ui v3.8.0 rebuilds `config.json` from its database without a persistent Xray template setting; it is therefore deliberately blocked as an install target. Do **not** deploy it to production until the 3x-ui persistence adapter and clean-server/recovery validation are complete.
+It keeps diagnostic traffic completely separate from user traffic:
 
-## What it does
-
-- Reads Xray access logs without touching user traffic.
-- Sends every diagnostic probe through an isolated **Shadow Xray + independent Shadow WARP** path.
-- Promotes a destination to Direct only when Shadow WARP fails and the Reserved-IP Direct path succeeds.
-- Applies ordinary routing changes live through Xray RoutingService.
-- Fails closed: if Shadow WARP is unhealthy, it makes no routing change.
-- Keeps user-defined pinned domains out of probing.
-
-## Installation\n\nThe supported 3x-ui/Ubuntu installer is one command; it provisions an independent Shadow WARP identity, verifies it, and does not restart production Xray:\n\n\`\`\`bash\ncurl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/install.sh | sudo bash -s -- --apply\n\`\`\`\n\nSee the complete [English guide](docs/INSTALL.md) and [راهنمای فارسی](docs/README.fa.md).\n\n## Policy
-
-The normal user edit is a policy file:
-
-- `pinned_direct_suffixes`: domains that must use stable Direct egress, including payment domains.
-- `pinned_warp_suffixes`: domains that must remain on WARP and must never be probed/promoted.
-- `manual_direct_suffixes`: optional explicitly approved Direct destinations.
-
-See [policy.example.json](policy.example.json).
-
-## Security model
-
-```
-User → Xray production → WARP or Reserved-IP Direct
-                     ↑
-Auto-Direct → Shadow Xray → independent Shadow WARP
+```text
+User traffic  → production Xray → primary WARP → Direct fallback
+Auto-Direct  → Shadow Xray     → independent Shadow WARP
 ```
 
-Shadow credentials, listeners, and probes are separate from production. This repository never contains personal UUIDs, private keys, domains, IP addresses, API tokens, or panel paths.
+If Shadow WARP is unhealthy, Auto-Direct fails closed: it performs no probe and no promotion.
 
-## Compatibility\n\nThe release target is [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui), using its official persistent Xray-template/API interface. The latest stable release tested so far (v3.8.0) does not expose that persistence layer, so the installer refuses it instead of leaving routes that disappear on restart. Alireza x-ui was used only for early Xray isolation experiments and is **not** a release target.\n\n## Release requirements
+## Supported topology
 
-The v1 installer will be a single-command (or short-command) deployment that:
+- MHSanaei/3x-ui with Xray RoutingService at `127.0.0.1:62789`
+- A Direct domain rule using the `direct` outbound
+- One selected production user inbound
+- Either:
+  - an existing user WARP WireGuard outbound; or
+  - a simple routing topology eligible for `--bootstrap-primary-warp`
 
-- installs and validates its dependencies;
-- creates a fresh, independent WARP identity;
-- provisions the Shadow Xray service and local SOCKS listener;
-- installs the controller, policy, systemd services, and safe defaults;
-- backs up configuration before changes;
-- validates Xray configuration before applying it;
-- verifies both the Shadow and production paths after installation;
-- provides uninstall and recovery instructions;
-- includes complete English and Persian documentation.
+The installer persists the active Xray configuration into 3x-ui's `xrayTemplateConfig` when necessary, so changes survive an x-ui restart. Alireza x-ui is deliberately unsupported.
 
-The production design has already been exercised with live routing updates, rollback checks, Shadow-WARP outage isolation, and stress requests. The public v1 release must also pass clean Ubuntu installation and recovery tests.
+## Install
+
+Existing primary WARP:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/install.sh | sudo bash -s -- --apply
+```
+
+No primary WARP yet, on a simple route set:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/install.sh | sudo bash -s -- --apply --bootstrap-primary-warp --inbound-tag YOUR_INBOUND_TAG
+```
+
+Bootstrap creates a **new primary WARP identity** with tag `autodirect-primary-warp`; it never reuses the independent Shadow identity. It refuses balancer-based, catch-all, or otherwise ambiguous routing rather than altering an unknown topology.
+
+See the complete [English guide](docs/INSTALL.md) and [راهنمای فارسی](docs/README.fa.md).
+
+## Policy
+
+Edit `/etc/xray-auto-direct/policy.json` to control:
+
+- `pinned_direct_suffixes`: always Direct (payment defaults are included).
+- `manual_direct_suffixes`: explicit user-approved Direct destinations.
+- `pinned_warp_suffixes`: always WARP and never probed/promoted.
+
+No policy update restarts production Xray. Every live promotion validates a temporary config, backs up config/database, applies through RoutingService, verifies the Xray PID, and rolls back on failure.
+
+## Security
+
+This repository contains no personal UUIDs, private keys, API tokens, panel paths, domains, or IP addresses. Shadow credentials are root-only, its SOCKS listener is loopback-only, and it must never be opened in a firewall.
 
 ## License
 
-Added with the first release.
+GPL-3.0.
