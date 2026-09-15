@@ -159,7 +159,8 @@ def extract_accessed(st, pinned_suffixes=()):
     found=[]
     for raw in data[:end].splitlines():
         ln=raw.decode('utf-8',errors='ignore')
-        expected=f'[{ACCESS_INBOUND_TAG} -> {PRIMARY_WARP_TAG}]'\n        if ' accepted ' not in ln or expected not in ln: continue
+        expected=f'[{ACCESS_INBOUND_TAG} -> {PRIMARY_WARP_TAG}]'
+        if ' accepted ' not in ln or expected not in ln: continue
         m=re.search(r'\baccepted\s+(?:(?:tcp|udp):|//)?([^\s\[\]]+):(\d+)\b',ln)
         if not m: continue
         host=normalize_host(m.group(1)); port=int(m.group(2))
