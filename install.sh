@@ -11,6 +11,7 @@ LIB="/usr/local/lib/xray-auto-direct"
 STATE="/var/lib/xray-auto-direct"
 PORT=20808
 APPLY=1
+BOOTSTRAP_PRIMARY=0
 PRIMARY_WARP_OVERRIDE="${XRAY_AUTODIRECT_PRIMARY_WARP_TAG:-}"
 ACCESS_INBOUND_OVERRIDE="${XRAY_AUTODIRECT_INBOUND_TAG:-}"
 
@@ -32,7 +33,8 @@ while [[ $# -gt 0 ]]; do
     --apply) APPLY=1 ;;
     --primary-warp-tag) shift; [[ $# -gt 0 ]] || die "--primary-warp-tag needs a tag"; PRIMARY_WARP_OVERRIDE="$1" ;;
     --inbound-tag) shift; [[ $# -gt 0 ]] || die "--inbound-tag needs a tag"; ACCESS_INBOUND_OVERRIDE="$1" ;;
-    *) die "Usage: sudo bash install.sh [--apply|--dry-run] [--primary-warp-tag TAG] [--inbound-tag TAG]" ;;
+    --bootstrap-primary-warp) BOOTSTRAP_PRIMARY=1 ;;
+    *) die "Usage: sudo bash install.sh [--apply|--dry-run] [--primary-warp-tag TAG] [--inbound-tag TAG] [--bootstrap-primary-warp]" ;;
   esac
   shift
 done
@@ -79,7 +81,7 @@ finally:
     con.close()
 PY
 
-discovery="$(XRAY_AUTODIRECT_PRIMARY_WARP_TAG="$PRIMARY_WARP_OVERRIDE" XRAY_AUTODIRECT_INBOUND_TAG="$ACCESS_INBOUND_OVERRIDE" python3 - "$ACTIVE_CFG" <<'PY'
+discovery="$(XRAY_AUTODIRECT_PRIMARY_WARP_TAG="$PRIMARY_WARP_OVERRIDE" XRAY_AUTODIRECT_INBOUND_TAG="$ACCESS_INBOUND_OVERRIDE" XRAY_AUTODIRECT_BOOTSTRAP_PRIMARY="$BOOTSTRAP_PRIMARY" python3 - "$ACTIVE_CFG" <<'PY'
 import json, os, sys
 cfg=json.load(open(sys.argv[1]))
 def valid(tag):
@@ -91,7 +93,8 @@ if req:
     warp=req
 elif 'warp' in outs: warp='warp'
 elif len(outs)==1: warp=outs[0]
-else: raise SystemExit('no unambiguous primary user WARP outbound found; create one in 3x-ui or pass --primary-warp-tag TAG')
+elif os.environ.get('XRAY_AUTODIRECT_BOOTSTRAP_PRIMARY','') == '1': warp='autodirect-primary-warp'
+else: raise SystemExit('no unambiguous primary user WARP outbound found; create one in 3x-ui, pass --primary-warp-tag TAG, or use --bootstrap-primary-warp on a simple route set')
 ins=[x.get('tag','') for x in cfg.get('inbounds',[]) if x.get('tag')!='api' and valid(x.get('tag',''))]
 req=os.environ.get('XRAY_AUTODIRECT_INBOUND_TAG','')
 if req:
@@ -121,9 +124,10 @@ apt-get install -y -qq ca-certificates curl python3 >/dev/null
 install -d -m 0700 "$ROOT" "$STATE" "$STATE/backups" "$LIB" "$LIB/bin" "$STATE/wgcf"
 curl -fsSL "$RAW/src/xray-auto-direct.py" -o "$LIB/xray-auto-direct.py"
 curl -fsSL "$RAW/install/wgcf_to_shadow.py" -o "$LIB/wgcf_to_shadow.py"
+curl -fsSL "$RAW/install/bootstrap_primary_warp.py" -o "$LIB/bootstrap_primary_warp.py"
 curl -fsSL "$RAW/systemd/xray-auto-direct.service" -o /etc/systemd/system/xray-auto-direct.service
 curl -fsSL "$RAW/systemd/xray-autodirect-shadow.service.in" -o /tmp/xray-autodirect-shadow.service
-chmod 0700 "$LIB/xray-auto-direct.py" "$LIB/wgcf_to_shadow.py"
+chmod 0700 "$LIB/xray-auto-direct.py" "$LIB/wgcf_to_shadow.py" "$LIB/bootstrap_primary_warp.py"
 
 # Fresh 3x-ui installs may run from their compiled-in template without a
 # xrayTemplateConfig database row. Persist the exact active config once so
@@ -234,21 +238,32 @@ curl -fL --retry 3 --connect-timeout 10 "$asset_url" -o "$LIB/bin/wgcf"
 chmod 0700 "$LIB/bin/wgcf"
 "$LIB/bin/wgcf" --help >/dev/null 2>&1 || die "downloaded wgcf binary is not executable"
 
-# A retry is intentionally bounded: a registration-rate limit must fail safely, not reuse production WARP.
-if [[ ! -f "$STATE/wgcf/wgcf-profile.conf" ]]; then
+# A retry is intentionally bounded: a registration-rate limit must fail safely and never reuse a user WARP identity.
+register_wgcf_profile() {
+  local profile_dir="$1"
+  if [[ -s "$profile_dir/wgcf-profile.conf" ]]; then return 0; fi
+  install -d -m 0700 "$profile_dir"
   (
-    cd "$STATE/wgcf"
+    cd "$profile_dir"
     for attempt in 1 2 3 4 5; do
       rm -f wgcf-account.toml wgcf-profile.conf
-      if timeout 30 "$LIB/bin/wgcf" register --accept-tos && timeout 20 "$LIB/bin/wgcf" generate; then
-        break
-      fi
+      if timeout 30 "$LIB/bin/wgcf" register --accept-tos && timeout 20 "$LIB/bin/wgcf" generate; then break; fi
       [[ "$attempt" == 5 ]] && exit 1
       sleep "$((attempt * 5))"
     done
     [[ -s wgcf-profile.conf ]]
   ) || die "could not register an independent WARP identity after 5 bounded attempts"
+}
+if [[ "$BOOTSTRAP_PRIMARY" == 1 && "$PRIMARY_WARP_TAG" == "autodirect-primary-warp" ]]; then
+  note "Bootstrapping a separate primary user WARP on the simple tested route topology"
+  register_wgcf_profile "$STATE/primary-wgcf"
+  primary_json="$STATE/primary-warp-outbound.json"
+  python3 "$LIB/wgcf_to_shadow.py" --wgcf "$STATE/primary-wgcf/wgcf-profile.conf" --output "$primary_json" --outbound-only --tag "$PRIMARY_WARP_TAG"
+  python3 "$LIB/bootstrap_primary_warp.py" --xray "$XRAY_BIN" --config "$ACTIVE_CFG" --db "$DB" --outbound "$primary_json" --inbound-tag "$ACCESS_INBOUND_TAG" --backup-dir "$STATE/backups"
+elif [[ "$BOOTSTRAP_PRIMARY" == 1 ]]; then
+  note "Existing primary WARP [$PRIMARY_WARP_TAG] found; bootstrap request was not needed"
 fi
+register_wgcf_profile "$STATE/wgcf"
 
 note "Generating isolated Shadow Xray configuration"
 python3 "$LIB/wgcf_to_shadow.py" --wgcf "$STATE/wgcf/wgcf-profile.conf" --output "$ROOT/shadow.json" --port "$PORT"
