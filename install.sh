@@ -56,7 +56,7 @@ try:
     if not persisted:
         row=con.execute("SELECT value FROM settings WHERE key='xrayTemplateConfig'").fetchone()
         if not row:
-            raise SystemExit("xrayTemplateConfig is missing from x-ui database")
+            raise SystemExit("unsupported 3x-ui persistence: xrayTemplateConfig is missing. Current stable 3x-ui v3.8.0 regenerates config.json and is intentionally blocked; use a release exposing the official persistent Xray template/API, then retry.")
         db=json.loads(row[0])
         persisted=any(r.get("outboundTag")=="direct" and isinstance(r.get("domain"),list)
                       for r in db.get("routing",{}).get("rules",[]))
