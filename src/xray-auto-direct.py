@@ -394,7 +394,7 @@ def live_add_direct(hosts):
     if not shadow_warp_healthy():
         log('v1 promotion blocked: shadow unhealthy before preparation')
         return False
-    ts=time.strftime('%Y%m%d-%H%M%S',time.gmtime()); bdir=BACKUP_DIR/ts; bdir.mkdir(mode=0o700,parents=True)
+    ts=time.strftime('%Y%m%d-%H%M%S',time.gmtime()); bdir=Path(tempfile.mkdtemp(prefix=ts+'-', dir=BACKUP_DIR))
     shutil.copy2(ACTIVE_CFG,bdir/'config.json'); sqlite_backup(str(DB),str(bdir/'x-ui.db'))
     tmp=ACTIVE_CFG.with_name(ACTIVE_CFG.stem+'.autodirect-v1.json')
     rt_new=STATE_DIR/'runtime-new.json'; rt_old=STATE_DIR/'runtime-old.json'
