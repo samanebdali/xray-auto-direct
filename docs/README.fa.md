@@ -36,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/i
 
 bootstrap یک WARP اصلی کاملاً جدا با tag `autodirect-primary-warp` می‌سازد، کانفیگ کامل را validate می‌کند، outbound و rules را زنده از طریق RoutingService اعمال می‌کند، همان تغییر را در template پایدار 3x-ui ذخیره می‌کند و PID Xray را بررسی می‌کند. اگر balancer، catch-all مبهم یا tag متداخل وجود داشته باشد، به‌جای تغییر حدسی متوقف می‌شود. اجرای مجدد آن idempotent است.
 
-نصب‌کننده به‌صورت خودکار RoutingService و پیش‌نیازها را بررسی می‌کند، `wgcf` را دریافت می‌کند، یک WARP مستقل ثبت می‌کند (حداکثر پنج تلاش محدود)، Shadow SOCKS را فقط روی `127.0.0.1:20808` می‌سازد، کانفیگ را با همان Xray validate می‌کند، trace کلودفلر با `warp=on` یا `warp=plus` را تأیید می‌کند و بعد controller را فعال می‌کند.
+نصب‌کننده به‌صورت خودکار RoutingService و پیش‌نیازها را بررسی می‌کند، `wgcf` را دریافت می‌کند، یک WARP مستقل ثبت می‌کند (حداکثر پنج تلاش محدود و سپس fallback ثبت مستقیم Cloudflare در صورت rate-limit)، Shadow SOCKS را فقط روی `127.0.0.1:20808` می‌سازد، کانفیگ را با همان Xray validate می‌کند، trace کلودفلر با `warp=on` یا `warp=plus` را تأیید می‌کند و بعد controller را فعال می‌کند.
 
 اگر هر مرحله fail شود، نصب متوقف می‌شود؛ probe به WARP یا Direct production fallback نمی‌کند.
 
