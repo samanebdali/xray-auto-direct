@@ -254,7 +254,12 @@ register_wgcf_profile() {
     [[ -s wgcf-profile.conf ]]
   ) || die "could not register an independent WARP identity after 5 bounded attempts"
 }
-if [[ "$BOOTSTRAP_PRIMARY" == 1 && "$PRIMARY_WARP_TAG" == "autodirect-primary-warp" ]]; then
+primary_present="$(PRIMARY_TAG="$PRIMARY_WARP_TAG" python3 - "$ACTIVE_CFG" <<'PY'
+import json, os, sys
+print("yes" if any(x.get("tag")==os.environ["PRIMARY_TAG"] for x in json.load(open(sys.argv[1])).get("outbounds",[])) else "no")
+PY
+)"
+if [[ "$BOOTSTRAP_PRIMARY" == 1 && "$PRIMARY_WARP_TAG" == "autodirect-primary-warp" && "$primary_present" == "no" ]]; then
   note "Bootstrapping a separate primary user WARP on the simple tested route topology"
   register_wgcf_profile "$STATE/primary-wgcf"
   primary_json="$STATE/primary-warp-outbound.json"
