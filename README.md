@@ -1,8 +1,8 @@
 # Xray Auto-Direct v1
 
-A safety-first routing controller for **MHSanaei/3x-ui** deployments that use Cloudflare WARP as the primary outbound and a stable Direct egress as fallback.
+A safety-first routing controller being engineered for **MHSanaei/3x-ui** deployments that use Cloudflare WARP as the primary outbound and a stable Direct egress as fallback.
 
-> Status: installer implementation is present, but the first release is not yet certified. Do **not** deploy it to production until clean-server and recovery validation are complete.
+> Status: installer implementation is present, but the first release is not yet certified. The current stable 3x-ui v3.8.0 rebuilds `config.json` from its database without a persistent Xray template setting; it is therefore deliberately blocked as an install target. Do **not** deploy it to production until the 3x-ui persistence adapter and clean-server/recovery validation are complete.
 
 ## What it does
 
@@ -33,7 +33,7 @@ Auto-Direct → Shadow Xray → independent Shadow WARP
 
 Shadow credentials, listeners, and probes are separate from production. This repository never contains personal UUIDs, private keys, domains, IP addresses, API tokens, or panel paths.
 
-## Compatibility\n\nThe canonical supported panel is [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui). Alireza x-ui was used only for early Xray isolation experiments and is **not** a release target.\n\n## Release requirements
+## Compatibility\n\nThe release target is [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui), using its official persistent Xray-template/API interface. The latest stable release tested so far (v3.8.0) does not expose that persistence layer, so the installer refuses it instead of leaving routes that disappear on restart. Alireza x-ui was used only for early Xray isolation experiments and is **not** a release target.\n\n## Release requirements
 
 The v1 installer will be a single-command (or short-command) deployment that:
 
