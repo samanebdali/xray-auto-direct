@@ -1,0 +1,17 @@
+[Unit]
+Description=Xray Auto-Direct Shadow WARP (isolated probe path)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@XRAY_WORKDIR@
+ExecStart=@XRAY_BIN@ run -c /etc/xray-auto-direct/shadow.json
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
