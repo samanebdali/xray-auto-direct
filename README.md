@@ -2,20 +2,16 @@
 
 A safety-first routing controller for Xray deployments that use Cloudflare WARP as the primary outbound and a stable Direct egress as fallback.
 
-> Status: public package preparation. Do not deploy from this repository until the installer and clean-server validation are released.
+> Status: engineering in progress. There is deliberately **no install command yet**: a partial installer was removed rather than leave an unsafe production path. The first public installer will provision every required component and will be released only after clean-server and recovery validation.
 
-## What it will do
+## What it does
 
 - Reads Xray access logs without touching user traffic.
-- Sends every diagnostic probe through an isolated **Shadow Xray + Shadow WARP** path.
+- Sends every diagnostic probe through an isolated **Shadow Xray + independent Shadow WARP** path.
 - Promotes a destination to Direct only when Shadow WARP fails and the Reserved-IP Direct path succeeds.
 - Applies ordinary routing changes live through Xray RoutingService.
 - Fails closed: if Shadow WARP is unhealthy, it makes no routing change.
 - Keeps user-defined pinned domains out of probing.
-
-## Install
-
-The installation command is documented in [docs/INSTALL.md](docs/INSTALL.md). It downloads the controller directly to the server; users do not download files manually.
 
 ## Policy
 
@@ -37,15 +33,19 @@ Auto-Direct → Shadow Xray → independent Shadow WARP
 
 Shadow credentials, listeners, and probes are separate from production. This repository never contains personal UUIDs, private keys, domains, IP addresses, API tokens, or panel paths.
 
-## Planned layout
+## Release requirements
 
-```
-install/   clean-server installer and systemd units
-src/       controller and isolated probe code
-config/    policy and configuration templates
-tests/     parser, rollback, health, and integration tests
-docs/      English and Persian operation guides
-```
+The v1 installer will be a single-command (or short-command) deployment that:
+
+- installs and validates its dependencies;
+- creates a fresh, independent WARP identity;
+- provisions the Shadow Xray service and local SOCKS listener;
+- installs the controller, policy, systemd services, and safe defaults;
+- backs up configuration before changes;
+- validates Xray configuration before applying it;
+- verifies both the Shadow and production paths after installation;
+- provides uninstall and recovery instructions;
+- includes complete English and Persian documentation.
 
 The production design has already been exercised with live routing updates, rollback checks, Shadow-WARP outage isolation, and stress requests. The public v1 release must also pass clean Ubuntu installation and recovery tests.
 
