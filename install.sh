@@ -305,6 +305,10 @@ trace="$(curl -4 -fsS --socks5-hostname "127.0.0.1:$PORT" --connect-timeout 3 --
   die "Shadow WARP trace failed"
 grep -Eq '^warp=(on|plus)$' <<<"$trace" || die "Shadow is not using WARP; refusing to enable controller"
 
+if [[ "$APPLY" == 1 ]]; then
+  note "Synchronizing pinned Direct policy before starting the controller"
+  "$LIB/xray-auto-direct.py" --sync-policy || die "initial policy synchronization failed"
+fi
 systemctl enable --now xray-auto-direct.service
 systemctl is-active --quiet xray-auto-direct.service || die "controller did not start"
 "$LIB/xray-auto-direct.py" --selftest || die "post-install self-test failed"
