@@ -312,7 +312,7 @@ grep -Eq '^warp=(on|plus)$' <<<"$trace" || die "Shadow is not using WARP; refusi
 
 if [[ "$APPLY" == 1 ]]; then
   note "Synchronizing pinned Direct policy before starting the controller"
-  "$LIB/xray-auto-direct.py" --sync-policy || die "initial policy synchronization failed"
+  XRAY_AUTODIRECT_APPLY="$APPLY" "$LIB/xray-auto-direct.py" --sync-policy || die "initial policy synchronization failed"
 fi
 systemctl enable --now xray-auto-direct.service
 systemctl is-active --quiet xray-auto-direct.service || die "controller did not start"
