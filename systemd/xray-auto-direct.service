@@ -1,0 +1,17 @@
+[Unit]
+Description=Xray Auto-Direct v1 controller
+After=network-online.target xray-autodirect-shadow.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/xray-auto-direct/controller.env
+ExecStart=/usr/local/lib/xray-auto-direct/xray-auto-direct.py
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
