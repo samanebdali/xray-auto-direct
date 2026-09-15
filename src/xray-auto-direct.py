@@ -12,6 +12,9 @@ DB=Path('/etc/x-ui/x-ui.db')
 PATH_STATE=Path('/run/xray-path-monitor.state')
 XRAY='/usr/local/x-ui/bin/xray-linux-amd64'
 WARP_PROXY='socks5h://127.0.0.1:20808'
+# User-path tags are discovered/provisioned by the installer and never share Shadow tags.
+ACCESS_INBOUND_TAG=os.environ.get('XRAY_AUTODIRECT_INBOUND_TAG','inbound-80')
+PRIMARY_WARP_TAG=os.environ.get('XRAY_AUTODIRECT_PRIMARY_WARP_TAG','warp')
 MARK=102
 MAX_PROBES=2
 GOOD_COOLDOWN=1800
@@ -156,7 +159,7 @@ def extract_accessed(st, pinned_suffixes=()):
     found=[]
     for raw in data[:end].splitlines():
         ln=raw.decode('utf-8',errors='ignore')
-        if ' accepted ' not in ln or '[inbound-80 -> warp]' not in ln: continue
+        expected=f'[{ACCESS_INBOUND_TAG} -> {PRIMARY_WARP_TAG}]'\n        if ' accepted ' not in ln or expected not in ln: continue
         m=re.search(r'\baccepted\s+(?:(?:tcp|udp):|//)?([^\s\[\]]+):(\d+)\b',ln)
         if not m: continue
         host=normalize_host(m.group(1)); port=int(m.group(2))
