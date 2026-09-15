@@ -82,7 +82,7 @@ PY
 discovery="$(XRAY_AUTODIRECT_PRIMARY_WARP_TAG="$PRIMARY_WARP_OVERRIDE" XRAY_AUTODIRECT_INBOUND_TAG="$ACCESS_INBOUND_OVERRIDE" python3 - "$ACTIVE_CFG" <<'PY'
 import json, os, re, sys
 cfg=json.load(open(sys.argv[1]))
-safe=re.compile(r'^[A-Za-z0-9._-]{1,128}
+safe=re.compile(r'^[A-Za-z0-9._-]+
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq ca-certificates curl python3 >/dev/null
@@ -271,7 +271,8 @@ else
   note "Dry-run mode is ENABLED. Set XRAY_AUTODIRECT_APPLY=1 in $ROOT/controller.env and restart only xray-auto-direct.service when ready."
 fi
 )
-outs=[x.get('tag','') for x in cfg.get('outbounds',[]) if x.get('protocol')=='wireguard' and isinstance(x.get('tag'),str)]
+def valid(tag): return isinstance(tag,str) and 0 < len(tag) <= 128 and bool(safe.fullmatch(tag))
+outs=[x.get('tag','') for x in cfg.get('outbounds',[]) if x.get('protocol')=='wireguard' and valid(x.get('tag',''))]
 req=os.environ.get('XRAY_AUTODIRECT_PRIMARY_WARP_TAG','')
 if req:
     if req not in outs: raise SystemExit('requested primary WARP tag is not a WireGuard outbound in active config')
@@ -279,7 +280,7 @@ if req:
 elif 'warp' in outs: warp='warp'
 elif len(outs)==1: warp=outs[0]
 else: raise SystemExit('no unambiguous primary user WARP outbound found; create one in 3x-ui or pass --primary-warp-tag TAG')
-ins=[x.get('tag','') for x in cfg.get('inbounds',[]) if x.get('tag')!='api' and isinstance(x.get('tag'),str)]
+ins=[x.get('tag','') for x in cfg.get('inbounds',[]) if x.get('tag')!='api' and valid(x.get('tag',''))]
 req=os.environ.get('XRAY_AUTODIRECT_INBOUND_TAG','')
 if req:
     if req not in ins: raise SystemExit('requested inbound tag is absent from active config')
@@ -287,7 +288,6 @@ if req:
 elif 'inbound-80' in ins: inbound='inbound-80'
 elif len(ins)==1: inbound=ins[0]
 else: raise SystemExit('no unambiguous user inbound found; pass --inbound-tag TAG')
-if not safe.fullmatch(warp) or not safe.fullmatch(inbound): raise SystemExit('unsafe Xray tag')
 print('PRIMARY_WARP_TAG='+warp)
 print('ACCESS_INBOUND_TAG='+inbound)
 PY
