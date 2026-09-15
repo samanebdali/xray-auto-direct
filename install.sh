@@ -119,7 +119,7 @@ note "Using user inbound [$ACCESS_INBOUND_TAG] and primary WARP [$PRIMARY_WARP_T
 note "Installing small prerequisites"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq ca-certificates curl python3 wireguard-tools >/dev/null
+apt-get install -y -qq ca-certificates curl python3 >/dev/null
 
 install -d -m 0700 "$ROOT" "$STATE" "$STATE/backups" "$LIB" "$LIB/bin" "$STATE/wgcf"
 curl -fsSL "$RAW/src/xray-auto-direct.py" -o "$LIB/xray-auto-direct.py"
