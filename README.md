@@ -1,6 +1,6 @@
 # Xray Auto-Direct v1
 
-A safety-first routing controller for Xray deployments that use Cloudflare WARP as the primary outbound and a stable Direct egress as fallback.
+A safety-first routing controller for **MHSanaei/3x-ui** deployments that use Cloudflare WARP as the primary outbound and a stable Direct egress as fallback.
 
 > Status: installer implementation is present, but the first release is not yet certified. Do **not** deploy it to production until clean-server and recovery validation are complete.
 
@@ -13,7 +13,7 @@ A safety-first routing controller for Xray deployments that use Cloudflare WARP 
 - Fails closed: if Shadow WARP is unhealthy, it makes no routing change.
 - Keeps user-defined pinned domains out of probing.
 
-## Installation\n\nThe supported x-ui/Ubuntu installer is one command; it provisions an independent Shadow WARP identity, verifies it, and does not restart production Xray:\n\n\`\`\`bash\ncurl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/install.sh | sudo bash -s -- --apply\n\`\`\`\n\nSee the complete [English guide](docs/INSTALL.md) and [راهنمای فارسی](docs/README.fa.md).\n\n## Policy
+## Installation\n\nThe supported 3x-ui/Ubuntu installer is one command; it provisions an independent Shadow WARP identity, verifies it, and does not restart production Xray:\n\n\`\`\`bash\ncurl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/install.sh | sudo bash -s -- --apply\n\`\`\`\n\nSee the complete [English guide](docs/INSTALL.md) and [راهنمای فارسی](docs/README.fa.md).\n\n## Policy
 
 The normal user edit is a policy file:
 
@@ -33,7 +33,7 @@ Auto-Direct → Shadow Xray → independent Shadow WARP
 
 Shadow credentials, listeners, and probes are separate from production. This repository never contains personal UUIDs, private keys, domains, IP addresses, API tokens, or panel paths.
 
-## Release requirements
+## Compatibility\n\nThe canonical supported panel is [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui). Alireza x-ui was used only for early Xray isolation experiments and is **not** a release target.\n\n## Release requirements
 
 The v1 installer will be a single-command (or short-command) deployment that:
 
