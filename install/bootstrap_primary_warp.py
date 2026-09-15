@@ -42,7 +42,10 @@ def main():
             if rule.get("inboundTag") and args.inbound_tag in rule["inboundTag"] and not (rule.get("domain") or rule.get("ip")):
                 die("bootstrap refuses an existing catch-all for selected inbound")
             if not (rule.get("domain") or rule.get("ip")):
-                die("bootstrap requires all existing rules to be domain/IP-specific")
+                is_api = rule.get("outboundTag") == "api" and rule.get("inboundTag") == ["api"]
+                is_blocked_protocol = rule.get("outboundTag") == "blocked" and rule.get("protocol") == ["bittorrent"]
+                if not (is_api or is_blocked_protocol):
+                    die("bootstrap requires only specific rules plus standard API/BitTorrent rules")
     rule={"type":"field","inboundTag":[args.inbound_tag],"outboundTag":tag}
     new=json.loads(old_raw); new["outbounds"].append(primary); new.setdefault("routing",{}).setdefault("rules",[]).append(rule)
     new_tpl=json.loads(db_old); new_tpl["outbounds"].append(primary); new_tpl.setdefault("routing",{}).setdefault("rules",[]).append(rule)
