@@ -40,7 +40,7 @@ The installer automatically:
 
 1. checks the live RoutingService and the config/database preconditions;
 2. installs small OS prerequisites;
-3. downloads a current `wgcf` release and registers an independent WARP account (five bounded retries);
+3. downloads a current `wgcf` release and registers an independent WARP account (five bounded retries, then a direct Cloudflare device-registration fallback for rate limits);
 4. generates a root-only Shadow Xray config listening only on `127.0.0.1:20808`;
 5. validates the Shadow config with the production Xray binary;
 6. starts Shadow and requires a Cloudflare trace showing `warp=on` or `warp=plus`;
