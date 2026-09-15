@@ -69,7 +69,7 @@ PY
 note "Installing small prerequisites"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq ca-certificates curl python3 xtables-addons-common >/dev/null
+apt-get install -y -qq ca-certificates curl python3 >/dev/null
 
 install -d -m 0700 "$ROOT" "$STATE" "$STATE/backups" "$LIB" "$LIB/bin" "$STATE/wgcf"
 curl -fsSL "$RAW/src/xray-auto-direct.py" -o "$LIB/xray-auto-direct.py"
@@ -125,6 +125,17 @@ cat > "$ROOT/controller.env" <<EOF
 XRAY_AUTODIRECT_APPLY=$APPLY
 EOF
 chmod 0600 "$ROOT/controller.env"
+note "Installing validated Iran IPv4 CIDR data"
+curl -fsSL --retry 3 https://www.ipdeny.com/ipblocks/data/countries/ir.zone -o "$ROOT/ir.cidr"
+python3 - "$ROOT/ir.cidr" <<'PY'
+import ipaddress, sys
+lines=[x.strip() for x in open(sys.argv[1]) if x.strip() and not x.lstrip().startswith('#')]
+if not lines:
+    raise SystemExit('Iran CIDR download was empty')
+for line in lines:
+    ipaddress.IPv4Network(line, strict=False)
+PY
+chmod 0640 "$ROOT/ir.cidr"
 if [[ ! -f "$ROOT/policy.json" ]]; then
   curl -fsSL "$RAW/policy.example.json" -o "$ROOT/policy.json"
   chmod 0640 "$ROOT/policy.json"
