@@ -91,15 +91,34 @@ def normalize_host(h):
     return h
 
 
-def policy_pinned_suffixes():
-    defaults=('openai.com','chatgpt.com','oaistatic.com','oaiusercontent.com','cdn.auth0.com')
+POLICY_FILE=Path('/etc/xray-auto-direct/policy.json')
+DEFAULT_WARP_SUFFIXES=('openai.com','chatgpt.com','oaistatic.com','oaiusercontent.com','cdn.auth0.com')
+
+def policy_lists():
+    """Return validated (direct, warp) suffix tuples; malformed policy fails safe."""
     try:
-        raw=json.loads(Path('/etc/xray-auto-direct/policy.json').read_text())
-        vals=raw.get('pinned_direct_suffixes',[])+raw.get('pinned_warp_suffixes',[])
-        vals=[str(x).strip().lower().lstrip('.') for x in vals if isinstance(x,str)]
-        return tuple(sorted(set(vals))) or defaults
-    except Exception:
-        return defaults
+        raw=json.loads(POLICY_FILE.read_text())
+        def clean(name):
+            values=raw.get(name,[])
+            if not isinstance(values,list): raise ValueError(f'{name} must be a list')
+            out=[]
+            for value in values:
+                host=normalize_host(str(value).strip().lstrip('.'))
+                if not host: raise ValueError(f'invalid suffix in {name}')
+                out.append(host)
+            return tuple(sorted(set(out)))
+        direct=tuple(sorted(set(clean('pinned_direct_suffixes')+clean('manual_direct_suffixes'))))
+        warp=clean('pinned_warp_suffixes') or DEFAULT_WARP_SUFFIXES
+        overlap=set(direct)&set(warp)
+        if overlap: raise ValueError('suffix in both Direct and WARP policy: '+', '.join(sorted(overlap)))
+        return direct,warp
+    except Exception as exc:
+        log('policy invalid; using safe default WARP exclusions: '+repr(exc))
+        return (),DEFAULT_WARP_SUFFIXES
+
+def policy_pinned_suffixes():
+    direct,warp=policy_lists()
+    return tuple(sorted(set(direct+warp)))
 
 def extract_accessed(st, pinned_suffixes=()):
     if not ACCESS_LOG.exists(): return []
@@ -558,15 +577,28 @@ def manual_probe(arg):
     return 0
 
 
+def sync_policy_direct():
+    direct,_=policy_lists()
+    if not direct:
+        return True
+    if not APPLY_CHANGES:
+        log('v1 policy Direct sync skipped in dry-run')
+        return True
+    log('v1 policy Direct sync requested: '+', '.join(direct))
+    return live_add_direct(direct)
+
 def main():
     STATE_DIR.mkdir(mode=0o700,parents=True,exist_ok=True); BACKUP_DIR.mkdir(mode=0o700,parents=True,exist_ok=True)
     if len(sys.argv)>=2 and sys.argv[1]=='--selftest': return selftest()
+    if len(sys.argv)>=2 and sys.argv[1]=='--sync-policy': return 0 if sync_policy_direct() else 2
     if len(sys.argv)>=3 and sys.argv[1]=='--probe': return manual_probe(sys.argv[2])
     lock=open('/run/xray-auto-direct.lock','w'); fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     st=load_json(STATE_FILE,{'hosts':{}}); st.setdefault('hosts',{})
     if ACCESS_LOG.exists() and 'access_inode' not in st:
         s=ACCESS_LOG.stat(); st['access_inode']=s.st_ino; st['access_offset']=s.st_size; save_state(st)
         log('v1 initialized at access-log EOF; no historical replay')
+    if not sync_policy_direct():
+        log('v1 policy Direct sync failed; controller remains running fail-closed')
     last_err=''
     last_shadow_health=0.0
     shadow_bad=0
