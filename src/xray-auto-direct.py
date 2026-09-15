@@ -336,7 +336,7 @@ def live_add_direct(hosts):
     hosts=sorted(set(h for h in hosts if h))
     if not hosts: return True
     if not shadow_warp_healthy():
-        log('v3 promotion blocked: shadow unhealthy before preparation')
+        log('v1 promotion blocked: shadow unhealthy before preparation')
         return False
     ts=time.strftime('%Y%m%d-%H%M%S',time.gmtime()); bdir=BACKUP_DIR/ts; bdir.mkdir(mode=0o700,parents=True)
     shutil.copy2(ACTIVE_CFG,bdir/'config.json'); sqlite_backup(str(DB),str(bdir/'x-ui.db'))
@@ -411,7 +411,7 @@ def live_add_direct(hosts):
         return True
     except Exception as exc:
         tmp.unlink(missing_ok=True)
-        log('v3 promotion failed: '+repr(exc))
+        log('v1 promotion failed: '+repr(exc))
         if mutated:
             try:
                 shutil.copy2(bdir/'config.json',ACTIVE_CFG)
@@ -420,15 +420,15 @@ def live_add_direct(hosts):
                     try:
                         changed=con.execute("UPDATE settings SET value=? WHERE key='xrayTemplateConfig' AND value=?",(old_db_value,new_db_value))
                         con.commit()
-                        if changed.rowcount!=1: log('v3 DB rollback skipped: template changed concurrently; manual review required')
+                        if changed.rowcount!=1: log('v1 DB rollback skipped: template changed concurrently; manual review required')
                     finally: con.close()
                 if live_attempted:
                     q=api_apply_rules(rt_old)
-                    log('v3 live rollback='+('ok' if q.returncode==0 else 'FAILED'))
+                    log('v1 live rollback='+('ok' if q.returncode==0 else 'FAILED'))
                 else:
-                    log('v3 file rollback=ok; runtime was not changed')
+                    log('v1 file rollback=ok; runtime was not changed')
             except Exception as rex:
-                log('v3 rollback ERROR '+repr(rex))
+                log('v1 rollback ERROR '+repr(rex))
         return False
     finally:
         rt_new.unlink(missing_ok=True); rt_old.unlink(missing_ok=True)
@@ -474,7 +474,7 @@ def cycle(st):
     if not selected:
         save_state(st); return
     if not shadow_warp_healthy():
-        log('v3 shadow WARP unhealthy; probes skipped fail-closed'); save_state(st); return
+        log('v1 shadow WARP unhealthy; probes skipped fail-closed'); save_state(st); return
     promoted=[]
     for host,e,_lane in selected:
         port=int(e.get('port',443)); ips=resolve_v4(host)
@@ -488,7 +488,7 @@ def cycle(st):
             e['last']='shadow_unhealthy_discarded'
             for pending_host in promoted:
                 st['hosts'][pending_host]['fails']=0
-            log('v3 shadow unhealthy after probe; cycle discarded fail-closed')
+            log('v1 shadow unhealthy after probe; cycle discarded fail-closed')
             save_state(st); return
         e['last']=f'shadow_warp={wc}/{wkind} reserved={rc}'
         if reason=='iran_ip': e['fails']=0; continue
@@ -502,10 +502,10 @@ def cycle(st):
     if promoted:
         promoted=sorted(set(promoted))
         if not APPLY_CHANGES:
-            log('v3 DRY-RUN confirmed: '+', '.join(promoted)); return
+            log('v1 DRY-RUN confirmed: '+', '.join(promoted)); return
         if not shadow_warp_healthy():
             for h in promoted: st['hosts'][h]['fails']=0
-            log('v3 shadow unhealthy before promotion; candidates discarded fail-closed')
+            log('v1 shadow unhealthy before promotion; candidates discarded fail-closed')
             save_state(st); return
         if live_add_direct(promoted):
             for h in promoted:
@@ -515,7 +515,7 @@ def cycle(st):
             dirs=sorted([p for p in BACKUP_DIR.iterdir() if p.is_dir()],reverse=True)
             for old in dirs[20:]: shutil.rmtree(old,ignore_errors=True)
         else:
-            log('v3 promotion rolled back')
+            log('v1 promotion rolled back')
 
 
 def selftest():
@@ -566,7 +566,7 @@ def main():
     st=load_json(STATE_FILE,{'hosts':{}}); st.setdefault('hosts',{})
     if ACCESS_LOG.exists() and 'access_inode' not in st:
         s=ACCESS_LOG.stat(); st['access_inode']=s.st_ino; st['access_offset']=s.st_size; save_state(st)
-        log('v3 initialized at access-log EOF; no historical replay')
+        log('v1 initialized at access-log EOF; no historical replay')
     last_err=''
     last_shadow_health=0.0
     shadow_bad=0
@@ -575,29 +575,29 @@ def main():
         if now_mono-last_shadow_health>=60:
             last_shadow_health=now_mono
             if shadow_warp_healthy():
-                if shadow_bad: log('v3 shadow WARP recovered without restart')
+                if shadow_bad: log('v1 shadow WARP recovered without restart')
                 shadow_bad=0
             else:
                 shadow_bad+=1
-                log(f'v3 shadow health failure {shadow_bad}/3')
+                log(f'v1 shadow health failure {shadow_bad}/3')
                 if shadow_bad>=3:
                     try:
                         r=subprocess.run(['systemctl','restart','xray-autodirect-shadow.service'],timeout=15)
                         time.sleep(3)
                         if r.returncode==0 and shadow_warp_healthy():
-                            log('v3 shadow self-heal restart=ok')
+                            log('v1 shadow self-heal restart=ok')
                             shadow_bad=0
                         else:
-                            log('v3 shadow self-heal restart did not restore WARP; remaining fail-closed')
+                            log('v1 shadow self-heal restart did not restore WARP; remaining fail-closed')
                             shadow_bad=0
                     except Exception as rex:
-                        log('v3 shadow self-heal ERROR '+repr(rex))
+                        log('v1 shadow self-heal ERROR '+repr(rex))
                         shadow_bad=0
         try:
             cycle(st); last_err=''
         except Exception as exc:
             msg=repr(exc)
-            if msg!=last_err: log('v3 cycle ERROR '+msg); last_err=msg
+            if msg!=last_err: log('v1 cycle ERROR '+msg); last_err=msg
         time.sleep(LOOP_INTERVAL)
 
 if __name__=='__main__':
@@ -605,4 +605,4 @@ if __name__=='__main__':
     except BlockingIOError: sys.exit(0)
     except KeyboardInterrupt: sys.exit(0)
     except Exception as e:
-        log('v3 FATAL '+repr(e)); sys.exit(1)
+        log('v1 FATAL '+repr(e)); sys.exit(1)
