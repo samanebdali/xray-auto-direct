@@ -69,16 +69,16 @@ chmod 0700 "$LIB/xray-auto-direct.py" "$LIB/wgcf_to_shadow.py"
 note "Obtaining wgcf for a fresh, independent WARP identity"
 arch="$(dpkg --print-architecture)"
 case "$arch" in amd64) wgarch=amd64 ;; arm64) wgarch=arm64 ;; *) die "unsupported architecture: $arch" ;; esac
-asset_url="$(curl -fsSL https://api.github.com/repos/ViRb3/wgcf/releases/latest | python3 - "$wgarch" <<'PY'
+asset_url="$(curl -fsSL https://api.github.com/repos/ViRb3/wgcf/releases/latest | python3 -c '
 import json, sys
 arch=sys.argv[1]
 for a in json.load(sys.stdin).get("assets",[]):
     u=a.get("browser_download_url","")
     n=a.get("name","")
     if "linux_"+arch in n and not n.endswith((".sha256",".sig")):
-        print(u); break
-PY
-)"
+        print(u)
+        break
+' "$wgarch")"
 [[ -n "$asset_url" ]] || die "could not locate a wgcf release for linux_$wgarch"
 curl -fL --retry 3 --connect-timeout 10 "$asset_url" -o "$LIB/bin/wgcf"
 chmod 0700 "$LIB/bin/wgcf"
