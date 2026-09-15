@@ -44,24 +44,24 @@ if not any(r.get("outboundTag")=="direct" and isinstance(r.get("domain"),list)
     raise SystemExit("supported Direct domain rule is missing from active Xray config")
 con=sqlite3.connect(sys.argv[2])
 try:
-    has_rules=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='routing_rules'").fetchone()
-    persisted=False
-    if has_rules:
-        for (raw,) in con.execute("SELECT raw_json FROM routing_rules ORDER BY sort,id"):
-            try: rule=json.loads(raw)
-            except Exception: continue
-            if rule.get("outboundTag")=="direct" and isinstance(rule.get("domain"),list):
-                persisted=True
-                break
-    if not persisted:
-        row=con.execute("SELECT value FROM settings WHERE key='xrayTemplateConfig'").fetchone()
-        if not row:
-            raise SystemExit("unsupported 3x-ui persistence: xrayTemplateConfig is missing. Current stable 3x-ui v3.8.0 regenerates config.json and is intentionally blocked; use a release exposing the official persistent Xray template/API, then retry.")
-        db=json.loads(row[0])
+    legacy=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='routing_rules'").fetchone()
+    if legacy:
+        raise SystemExit("unsupported panel database layout: this v1 release targets MHSanaei/3x-ui, not legacy Alireza x-ui")
+    rows=con.execute("SELECT value FROM settings WHERE key='xrayTemplateConfig' ORDER BY id").fetchall()
+    if len(rows)>1:
+        raise SystemExit("xrayTemplateConfig has duplicate rows; refusing an ambiguous migration")
+    if not rows:
+        # 3x-ui's shipped default template is available in memory but may not
+        # have a SQLite row yet. The installer will persist an exact copy of
+        # the already-running validated config, after creating a DB backup.
+        print("template_bootstrap_required=1")
+    else:
+        db=json.loads(rows[0][0])
         persisted=any(r.get("outboundTag")=="direct" and isinstance(r.get("domain"),list)
                       for r in db.get("routing",{}).get("rules",[]))
-    if not persisted:
-        raise SystemExit("supported Direct domain rule is missing from x-ui persistence")
+        if not persisted:
+            raise SystemExit("supported Direct domain rule is missing from persistent 3x-ui template")
+        print("template_bootstrap_required=0")
 finally:
     con.close()
 PY
@@ -77,6 +77,43 @@ curl -fsSL "$RAW/install/wgcf_to_shadow.py" -o "$LIB/wgcf_to_shadow.py"
 curl -fsSL "$RAW/systemd/xray-auto-direct.service" -o /etc/systemd/system/xray-auto-direct.service
 curl -fsSL "$RAW/systemd/xray-autodirect-shadow.service.in" -o /tmp/xray-autodirect-shadow.service
 chmod 0700 "$LIB/xray-auto-direct.py" "$LIB/wgcf_to_shadow.py"
+
+# Fresh 3x-ui installs may run from their compiled-in template without a
+# xrayTemplateConfig database row. Persist the exact active config once so
+# Auto-Direct changes survive the next panel/Xray restart. This does not
+# restart, reload, or otherwise interrupt production Xray.
+note "Ensuring 3x-ui has a persistent Xray template"
+python3 - "$ACTIVE_CFG" "$DB" "$STATE/backups/pre-template-migration.db" <<'PY'
+import json, os, sqlite3, sys
+cfg_path, db_path, backup_path = sys.argv[1:]
+raw=open(cfg_path, encoding='utf-8').read()
+cfg=json.loads(raw)
+if not isinstance(cfg.get('outbounds'), list) or not isinstance(cfg.get('routing', {}).get('rules'), list):
+    raise SystemExit('active config is not a valid 3x-ui Xray template')
+src=sqlite3.connect(db_path)
+dst=sqlite3.connect(backup_path)
+try:
+    src.backup(dst)
+finally:
+    dst.close()
+try:
+    with src:
+        rows=src.execute("SELECT id,value FROM settings WHERE key='xrayTemplateConfig' ORDER BY id").fetchall()
+        if len(rows)>1:
+            raise SystemExit('xrayTemplateConfig has duplicate rows; refusing an ambiguous migration')
+        if not rows:
+            src.execute("INSERT INTO settings(key,value) VALUES(?,?)", ('xrayTemplateConfig', raw))
+            print('3xui_template_migrated=yes')
+        else:
+            # Never overwrite an existing admin-authored template.
+            persisted=json.loads(rows[0][1])
+            if not isinstance(persisted.get('routing', {}).get('rules'), list):
+                raise SystemExit('stored xrayTemplateConfig is invalid')
+            print('3xui_template_migrated=no')
+finally:
+    src.close()
+os.chmod(backup_path, 0o600)
+PY
 
 # Obtain a pinned-at-install-time wgcf release selected by GitHub's release API.
 note "Obtaining wgcf for a fresh, independent WARP identity"
