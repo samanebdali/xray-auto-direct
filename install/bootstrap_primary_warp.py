@@ -53,7 +53,7 @@ def main():
     shutil.copy2(args.config,args.backup_dir/"pre-primary-bootstrap.config.json")
     shutil.copy2(args.db,args.backup_dir/"pre-primary-bootstrap.db")
     with tempfile.TemporaryDirectory() as d:
-        staged=Path(d)/"config.json"; route_old=Path(d)/"route-old.json"; route_new=Path(d)/"route-new.json"
+        staged=Path(d)/"config.json"; route_old=Path(d)/"route-old.json"; route_new=Path(d)/"route-new.json"; outbound_cfg=Path(d)/"outbound.json"
         staged.write_text(json.dumps(new,indent=2)+"\n"); route_old.write_text(json.dumps({"routing":old.get("routing",{})})); route_new.write_text(json.dumps({"routing":new.get("routing",{})}))
         run([args.xray,"run","-test","-c",str(staged)])
         pid_before=subprocess.check_output(["pgrep","-o","-f","bin/xray-linux-amd64 -c bin/config.json"],text=True).strip()
@@ -65,7 +65,7 @@ def main():
                 if cur.rowcount!=1: die("xrayTemplateConfig changed concurrently")
             con.close(); changed=True
             os.replace(staged,args.config)
-            run([args.xray,"api","ado","-s",args.api,str(args.outbound)])
+            run([args.xray,"api","ado","-s",args.api,str(outbound_cfg)])
             added=True
             run([args.xray,"api","adrules","-s",args.api,str(route_new)])
         except Exception:
