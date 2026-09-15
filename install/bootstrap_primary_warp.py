@@ -65,8 +65,8 @@ def main():
                 if cur.rowcount!=1: die("xrayTemplateConfig changed concurrently")
             con.close(); changed=True
             os.replace(staged,args.config)
-            run([args.xray,"api","ado","-s",args.api,str(outbound_cfg)])
             added=True
+            run([args.xray,"api","ado","-s",args.api,str(outbound_cfg)])
             run([args.xray,"api","adrules","-s",args.api,str(route_new)])
         except Exception:
             if added:
