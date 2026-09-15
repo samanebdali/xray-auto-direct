@@ -119,7 +119,7 @@ PY
 # leaves the production Xray process and all listeners untouched.
 note "Enabling the local Xray access log without restarting Xray"
 install -d -m 0755 "$(dirname "$ACCESS_LOG")"
-log_tmp="$(mktemp "${ACTIVE_CFG}.autodirect-log.XXXXXX")"
+log_tmp="$(mktemp --suffix=.json /tmp/xray-autodirect-log.XXXXXX)"
 template_tmp="$(mktemp)"
 cleanup_log_tmp() { rm -f "$log_tmp" "$template_tmp"; }
 trap cleanup_log_tmp EXIT
