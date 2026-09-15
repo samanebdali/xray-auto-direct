@@ -253,7 +253,13 @@ register_wgcf_profile() {
       sleep "$((attempt * 5))"
     done
     [[ -s wgcf-profile.conf ]]
-  ) || {\n    note "wgcf registration was rate-limited; trying direct Cloudflare registration fallback"\n    rm -f "$profile_dir/wgcf-account.toml" "$profile_dir/wgcf-profile.conf"\n    python3 "$LIB/register_warp_direct.py" --output "$profile_dir/wgcf-account.toml" || die "could not register an independent WARP identity"\n    timeout 20 "$LIB/bin/wgcf" generate --config "$profile_dir/wgcf-account.toml" --profile "$profile_dir/wgcf-profile.conf" || die "directly registered WARP identity could not generate a profile"\n  }\n}
+  ) || {
+    note "wgcf registration was rate-limited; trying direct Cloudflare registration fallback"
+    rm -f "$profile_dir/wgcf-account.toml" "$profile_dir/wgcf-profile.conf"
+    python3 "$LIB/register_warp_direct.py" --output "$profile_dir/wgcf-account.toml" || die "could not register an independent WARP identity"
+    timeout 20 "$LIB/bin/wgcf" generate --config "$profile_dir/wgcf-account.toml" --profile "$profile_dir/wgcf-profile.conf" || die "directly registered WARP identity could not generate a profile"
+  }
+}
 primary_present="$(PRIMARY_TAG="$PRIMARY_WARP_TAG" python3 - "$ACTIVE_CFG" <<'PY'
 import json, os, sys
 print("yes" if any(x.get("tag")==os.environ["PRIMARY_TAG"] for x in json.load(open(sys.argv[1])).get("outbounds",[])) else "no")
