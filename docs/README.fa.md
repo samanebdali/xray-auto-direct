@@ -12,7 +12,7 @@
 
 در کانفیگ فعال و template دیتابیس باید یک rule با `outboundTag: "direct"` وجود داشته باشد. نصب‌کننده اول این‌ها را فقط بررسی می‌کند. خود installer به x-ui یا Xray production restart/reload نمی‌دهد.
 
-برای Shadow یک هویت WARP کاملاً تازه ساخته می‌شود. هیچ کلید، identity یا SOCKS مربوط به WARP production خوانده یا استفاده نمی‌شود.
+برای Shadow یک هویت WARP کاملاً تازه ساخته می‌شود. هیچ کلید، identity یا SOCKS مربوط به WARP production خوانده یا استفاده نمی‌شود. اگر bootstrap لازم باشد، برای WARP اصلی کاربر هم یک هویت دوم و مستقل ساخته می‌شود؛ هرگز از identity Shadow استفاده نمی‌شود.
 
 ## نصب تک‌دستوری
 
@@ -27,6 +27,14 @@ curl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/i
 ```bash
 curl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/install.sh | sudo bash -s -- --dry-run
 ```
+
+اگر مدیر پنل هنوز WARP خروجیِ کاربر را نساخته است، فقط در routing ساده می‌تواند bootstrap را صریحاً بخواهد:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/install.sh | sudo bash -s -- --apply --bootstrap-primary-warp --inbound-tag YOUR_INBOUND_TAG
+```
+
+bootstrap یک WARP اصلی کاملاً جدا با tag `autodirect-primary-warp` می‌سازد، کانفیگ کامل را validate می‌کند، outbound و rules را زنده از طریق RoutingService اعمال می‌کند، همان تغییر را در template پایدار 3x-ui ذخیره می‌کند و PID Xray را بررسی می‌کند. اگر balancer، catch-all مبهم یا tag متداخل وجود داشته باشد، به‌جای تغییر حدسی متوقف می‌شود. اجرای مجدد آن idempotent است.
 
 نصب‌کننده به‌صورت خودکار RoutingService و پیش‌نیازها را بررسی می‌کند، `wgcf` را دریافت می‌کند، یک WARP مستقل ثبت می‌کند (حداکثر پنج تلاش محدود)، Shadow SOCKS را فقط روی `127.0.0.1:20808` می‌سازد، کانفیگ را با همان Xray validate می‌کند، trace کلودفلر با `warp=on` یا `warp=plus` را تأیید می‌کند و بعد controller را فعال می‌کند.
 
