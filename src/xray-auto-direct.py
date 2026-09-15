@@ -363,6 +363,7 @@ def live_add_direct(hosts):
     rt_new=STATE_DIR/'runtime-new.json'; rt_old=STATE_DIR/'runtime-old.json'
     mutated=False; live_attempted=False; db_mutated=False
     old_db_value=None; new_db_value=None
+    db_mode=None; db_row_id=None
     old_pid=None
     try:
         try:
@@ -386,13 +387,24 @@ def live_add_direct(hosts):
 
         con=sqlite3.connect(DB)
         try:
-            row=con.execute("SELECT value FROM settings WHERE key='xrayTemplateConfig'").fetchone()
-            if not row: raise RuntimeError('xrayTemplateConfig missing')
-            old_db_value=row[0]
-            dbc=json.loads(old_db_value); dt=None
-            for r in dbc.get('routing',{}).get('rules',[]):
-                if r.get('outboundTag')=='direct' and isinstance(r.get('domain'),list): dt=r; break
-            if dt is None: raise RuntimeError('DB direct domain rule missing')
+            # Current x-ui stores routing rules in its own table; older/custom
+            # deployments keep them in xrayTemplateConfig. Support both safely.
+            has_rules=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='routing_rules'").fetchone()
+            if has_rules:
+                for row_id,raw in con.execute("SELECT id,raw_json FROM routing_rules ORDER BY sort,id"):
+                    try: candidate=json.loads(raw)
+                    except Exception: continue
+                    if candidate.get('outboundTag')=='direct' and isinstance(candidate.get('domain'),list):
+                        db_mode='routing_rules'; db_row_id=row_id; old_db_value=raw; dbc=candidate; break
+            if db_mode is None:
+                row=con.execute("SELECT value FROM settings WHERE key='xrayTemplateConfig'").fetchone()
+                if not row: raise RuntimeError('xrayTemplateConfig missing')
+                old_db_value=row[0]; dbc=json.loads(old_db_value)
+                for candidate in dbc.get('routing',{}).get('rules',[]):
+                    if candidate.get('outboundTag')=='direct' and isinstance(candidate.get('domain'),list):
+                        db_mode='template'; break
+                else: raise RuntimeError('DB direct domain rule missing')
+            dt=dbc if db_mode=='routing_rules' else candidate
             for h in actual:
                 v='domain:'+h
                 if v not in dt['domain']: dt['domain'].append(v)
@@ -412,9 +424,12 @@ def live_add_direct(hosts):
         con=sqlite3.connect(DB)
         try:
             new_db_value=json.dumps(dbc,ensure_ascii=False)
-            changed=con.execute("UPDATE settings SET value=? WHERE key='xrayTemplateConfig' AND value=?",(new_db_value,old_db_value))
+            if db_mode=='routing_rules':
+                changed=con.execute("UPDATE routing_rules SET raw_json=? WHERE id=? AND raw_json=?",(new_db_value,db_row_id,old_db_value))
+            else:
+                changed=con.execute("UPDATE settings SET value=? WHERE key='xrayTemplateConfig' AND value=?",(new_db_value,old_db_value))
             if changed.rowcount!=1:
-                con.rollback(); raise RuntimeError('DB template changed concurrently; apply cancelled')
+                con.rollback(); raise RuntimeError('DB routing rule changed concurrently; apply cancelled')
             con.commit(); db_mutated=True
         finally: con.close()
 
@@ -437,9 +452,12 @@ def live_add_direct(hosts):
                 if db_mutated:
                     con=sqlite3.connect(DB)
                     try:
-                        changed=con.execute("UPDATE settings SET value=? WHERE key='xrayTemplateConfig' AND value=?",(old_db_value,new_db_value))
+                        if db_mode=='routing_rules':
+                            changed=con.execute("UPDATE routing_rules SET raw_json=? WHERE id=? AND raw_json=?",(old_db_value,db_row_id,new_db_value))
+                        else:
+                            changed=con.execute("UPDATE settings SET value=? WHERE key='xrayTemplateConfig' AND value=?",(old_db_value,new_db_value))
                         con.commit()
-                        if changed.rowcount!=1: log('v1 DB rollback skipped: template changed concurrently; manual review required')
+                        if changed.rowcount!=1: log('v1 DB rollback skipped: routing changed concurrently; manual review required')
                     finally: con.close()
                 if live_attempted:
                     q=api_apply_rules(rt_old)
