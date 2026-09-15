@@ -103,14 +103,14 @@ if [[ ! -f "$STATE/wgcf/wgcf-profile.conf" ]]; then
     cd "$STATE/wgcf"
     for attempt in 1 2 3 4 5; do
       rm -f wgcf-account.toml wgcf-profile.conf
-      if "$LIB/bin/wgcf" register --accept-tos && "$LIB/bin/wgcf" generate; then
+      if timeout 30 "$LIB/bin/wgcf" register --accept-tos && timeout 20 "$LIB/bin/wgcf" generate; then
         break
       fi
       [[ "$attempt" == 5 ]] && exit 1
       sleep "$((attempt * 5))"
     done
     [[ -s wgcf-profile.conf ]]
-  ) || die "could not register an independent WARP identity after 5 attempts"
+  ) || die "could not register an independent WARP identity after 5 bounded attempts"
 fi
 
 note "Generating isolated Shadow Xray configuration"
