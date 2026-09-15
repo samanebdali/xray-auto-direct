@@ -54,7 +54,7 @@ def main():
     shutil.copy2(args.db,args.backup_dir/"pre-primary-bootstrap.db")
     with tempfile.TemporaryDirectory() as d:
         staged=Path(d)/"config.json"; route_old=Path(d)/"route-old.json"; route_new=Path(d)/"route-new.json"; outbound_cfg=Path(d)/"outbound.json"
-        staged.write_text(json.dumps(new,indent=2)+"\n"); route_old.write_text(json.dumps({"routing":old.get("routing",{})})); route_new.write_text(json.dumps({"routing":new.get("routing",{})}))
+        staged.write_text(json.dumps(new,indent=2)+"\n"); route_old.write_text(json.dumps({"routing":old.get("routing",{})})); route_new.write_text(json.dumps({"routing":new.get("routing",{})})); outbound_cfg.write_text(json.dumps({"outbounds":[primary]}))
         run([args.xray,"run","-test","-c",str(staged)])
         pid_before=subprocess.check_output(["pgrep","-o","-f","bin/xray-linux-amd64 -c bin/config.json"],text=True).strip()
         changed=False; added=False
