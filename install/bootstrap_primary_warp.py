@@ -59,15 +59,15 @@ def main():
         pid_before=subprocess.check_output(["pgrep","-o","-f","bin/xray-linux-amd64 -c bin/config.json"],text=True).strip()
         changed=False; added=False
         try:
+            added=True
+            run([args.xray,"api","ado","-s",args.api,str(outbound_cfg)])
+            run([args.xray,"api","adrules","-s",args.api,str(route_new)])
             con=sqlite3.connect(args.db)
             with con:
                 cur=con.execute("UPDATE settings SET value=? WHERE id=? AND value=?",(json.dumps(new_tpl,separators=(",",":")),row_id,db_old))
                 if cur.rowcount!=1: die("xrayTemplateConfig changed concurrently")
             con.close(); changed=True
             os.replace(staged,args.config)
-            added=True
-            run([args.xray,"api","ado","-s",args.api,str(outbound_cfg)])
-            run([args.xray,"api","adrules","-s",args.api,str(route_new)])
         except Exception:
             if added:
                 subprocess.run([args.xray,"api","rmo","-s",args.api,tag],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
