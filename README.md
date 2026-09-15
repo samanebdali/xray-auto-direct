@@ -13,6 +13,10 @@ A safety-first routing controller for Xray deployments that use Cloudflare WARP 
 - Fails closed: if Shadow WARP is unhealthy, it makes no routing change.
 - Keeps user-defined pinned domains out of probing.
 
+## Install
+
+The installation command is documented in [docs/INSTALL.md](docs/INSTALL.md). It downloads the controller directly to the server; users do not download files manually.
+
 ## Policy
 
 The normal user edit is a policy file:
