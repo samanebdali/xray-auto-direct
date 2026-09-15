@@ -43,16 +43,33 @@ def save_state(st):
     os.replace(tmp,STATE_FILE)
 
 
+IR_CIDR_FILE=Path('/etc/xray-auto-direct/ir.cidr')
+
 def iran_ranges():
-    p=subprocess.run(['xt_geoip_query','-D','/usr/share/xt_geoip','-4','IR'],text=True,capture_output=True,timeout=10)
-    if p.returncode:
-        raise RuntimeError('cannot load IR GeoIP ranges')
+    # A root-owned CIDR file is installed explicitly, avoiding distribution-
+    # dependent xtables GeoIP datasets. Legacy deployments may use xt_geoip.
     out=[]
-    for ln in p.stdout.splitlines():
-        if '-' not in ln: continue
-        a,b=ln.strip().split('-',1)
-        out.append((int(ipaddress.IPv4Address(a)),int(ipaddress.IPv4Address(b))))
-    if not out: raise RuntimeError("IR GeoIP ranges empty; fail-closed")
+    try:
+        for ln in IR_CIDR_FILE.read_text().splitlines():
+            ln=ln.strip()
+            if not ln or ln.startswith('#'): continue
+            net=ipaddress.IPv4Network(ln, strict=False)
+            out.append((int(net.network_address),int(net.broadcast_address)))
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        raise RuntimeError('invalid IR CIDR file; fail-closed: '+repr(exc))
+    if not out:
+        try:
+            p=subprocess.run(['xt_geoip_query','-D','/usr/share/xt_geoip','-4','IR'],text=True,capture_output=True,timeout=10)
+            if not p.returncode:
+                for ln in p.stdout.splitlines():
+                    if '-' in ln:
+                        a,b=ln.strip().split('-',1)
+                        out.append((int(ipaddress.IPv4Address(a)),int(ipaddress.IPv4Address(b))))
+        except Exception:
+            pass
+    if not out: raise RuntimeError("IR ranges unavailable; fail-closed")
     return sorted(out)
 
 IR_RANGES=iran_ranges()
