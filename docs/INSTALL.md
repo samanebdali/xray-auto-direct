@@ -12,7 +12,7 @@ Auto-Direct v1 supports Ubuntu 22.04/24.04 servers that already run **x-ui** in 
 
 The active configuration and the x-ui database must both contain a Direct domain rule with `outboundTag: "direct"`. The installer checks this before it writes anything. It does **not** restart or reload x-ui or production Xray.
 
-The install creates a brand-new WARP identity for Shadow. It never imports, reads, or shares the production WARP identity.
+The install creates a brand-new WARP identity for Shadow. It never imports, reads, or shares the production WARP identity. If requested, primary-WARP bootstrap creates a second, distinct identity for user traffic.
 
 ## One-command installation
 
@@ -28,6 +28,14 @@ For observation without live promotions:
 curl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/install.sh | sudo bash -s -- --dry-run
 ```
 
+If the panel does not yet have a user WARP outbound, bootstrap it only on a simple route set:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/install.sh | sudo bash -s -- --apply --bootstrap-primary-warp --inbound-tag YOUR_INBOUND_TAG
+```
+
+Bootstrap uses the tag `autodirect-primary-warp`, creates a separate primary identity, validates the full config, applies the live outbound/rules through RoutingService, persists the same change in 3x-ui, and verifies the Xray PID. It refuses balancers, ambiguous catch-all rules, and pre-existing conflicting tags. Re-running it is idempotent.
+
 The installer automatically:
 
 1. checks the live RoutingService and the config/database preconditions;
@@ -36,7 +44,7 @@ The installer automatically:
 4. generates a root-only Shadow Xray config listening only on `127.0.0.1:20808`;
 5. validates the Shadow config with the production Xray binary;
 6. starts Shadow and requires a Cloudflare trace showing `warp=on` or `warp=plus`;
-7. installs/enables the controller and runs its self-test.
+7. synchronizes pinned Direct policy, installs/enables the controller, and runs its self-test.
 
 A failed prerequisite aborts safely. It does not fall back to production WARP or Direct for probes.
 
