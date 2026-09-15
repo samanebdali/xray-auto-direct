@@ -57,14 +57,14 @@ def main():
         config = {
             "log": {"loglevel": "warning"},
             "inbounds": [{
-                "tag": "shadow-socks",
+                "tag": "autodirect-shadow-socks",
                 "listen": "127.0.0.1",
                 "port": args.port,
                 "protocol": "socks",
                 "settings": {"auth": "noauth", "udp": True},
             }],
             "outbounds": [{
-                "tag": "shadow-warp",
+                "tag": "autodirect-shadow-warp",
                 "protocol": "wireguard",
                 "settings": {
                     "secretKey": get(interface, "PrivateKey"),
@@ -77,7 +77,7 @@ def main():
             }],
             "routing": {
                 "domainStrategy": "AsIs",
-                "rules": [{"type": "field", "inboundTag": ["shadow-socks"], "outboundTag": "shadow-warp"}],
+                "rules": [{"type": "field", "inboundTag": ["autodirect-shadow-socks"], "outboundTag": "autodirect-shadow-warp"}],
             },
         }
     except (KeyError, ValueError) as exc:
