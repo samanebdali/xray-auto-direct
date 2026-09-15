@@ -43,14 +43,27 @@ if not any(r.get("outboundTag")=="direct" and isinstance(r.get("domain"),list)
            for r in cfg.get("routing",{}).get("rules",[])):
     raise SystemExit("supported Direct domain rule is missing from active Xray config")
 con=sqlite3.connect(sys.argv[2])
-row=con.execute("SELECT value FROM settings WHERE key='xrayTemplateConfig'").fetchone()
-con.close()
-if not row:
-    raise SystemExit("xrayTemplateConfig is missing from x-ui database")
-db=json.loads(row[0])
-if not any(r.get("outboundTag")=="direct" and isinstance(r.get("domain"),list)
-           for r in db.get("routing",{}).get("rules",[])):
-    raise SystemExit("supported Direct domain rule is missing from x-ui database template")
+try:
+    has_rules=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='routing_rules'").fetchone()
+    persisted=False
+    if has_rules:
+        for (raw,) in con.execute("SELECT raw_json FROM routing_rules ORDER BY sort,id"):
+            try: rule=json.loads(raw)
+            except Exception: continue
+            if rule.get("outboundTag")=="direct" and isinstance(rule.get("domain"),list):
+                persisted=True
+                break
+    if not persisted:
+        row=con.execute("SELECT value FROM settings WHERE key='xrayTemplateConfig'").fetchone()
+        if not row:
+            raise SystemExit("xrayTemplateConfig is missing from x-ui database")
+        db=json.loads(row[0])
+        persisted=any(r.get("outboundTag")=="direct" and isinstance(r.get("domain"),list)
+                      for r in db.get("routing",{}).get("rules",[]))
+    if not persisted:
+        raise SystemExit("supported Direct domain rule is missing from x-ui persistence")
+finally:
+    con.close()
 PY
 
 note "Installing small prerequisites"
