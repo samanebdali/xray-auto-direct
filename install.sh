@@ -119,15 +119,16 @@ note "Using user inbound [$ACCESS_INBOUND_TAG] and primary WARP [$PRIMARY_WARP_T
 note "Installing small prerequisites"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq ca-certificates curl python3 >/dev/null
+apt-get install -y -qq ca-certificates curl python3 wireguard-tools >/dev/null
 
 install -d -m 0700 "$ROOT" "$STATE" "$STATE/backups" "$LIB" "$LIB/bin" "$STATE/wgcf"
 curl -fsSL "$RAW/src/xray-auto-direct.py" -o "$LIB/xray-auto-direct.py"
 curl -fsSL "$RAW/install/wgcf_to_shadow.py" -o "$LIB/wgcf_to_shadow.py"
 curl -fsSL "$RAW/install/bootstrap_primary_warp.py" -o "$LIB/bootstrap_primary_warp.py"
+curl -fsSL "$RAW/install/register_warp_direct.py" -o "$LIB/register_warp_direct.py"
 curl -fsSL "$RAW/systemd/xray-auto-direct.service" -o /etc/systemd/system/xray-auto-direct.service
 curl -fsSL "$RAW/systemd/xray-autodirect-shadow.service.in" -o /tmp/xray-autodirect-shadow.service
-chmod 0700 "$LIB/xray-auto-direct.py" "$LIB/wgcf_to_shadow.py" "$LIB/bootstrap_primary_warp.py"
+chmod 0700 "$LIB/xray-auto-direct.py" "$LIB/wgcf_to_shadow.py" "$LIB/bootstrap_primary_warp.py" "$LIB/register_warp_direct.py"
 
 # Fresh 3x-ui installs may run from their compiled-in template without a
 # xrayTemplateConfig database row. Persist the exact active config once so
@@ -252,8 +253,7 @@ register_wgcf_profile() {
       sleep "$((attempt * 5))"
     done
     [[ -s wgcf-profile.conf ]]
-  ) || die "could not register an independent WARP identity after 5 bounded attempts"
-}
+  ) || {\n    note "wgcf registration was rate-limited; trying direct Cloudflare registration fallback"\n    rm -f "$profile_dir/wgcf-account.toml" "$profile_dir/wgcf-profile.conf"\n    python3 "$LIB/register_warp_direct.py" --output "$profile_dir/wgcf-account.toml" || die "could not register an independent WARP identity"\n    timeout 20 "$LIB/bin/wgcf" generate --config "$profile_dir/wgcf-account.toml" --profile "$profile_dir/wgcf-profile.conf" || die "directly registered WARP identity could not generate a profile"\n  }\n}
 primary_present="$(PRIMARY_TAG="$PRIMARY_WARP_TAG" python3 - "$ACTIVE_CFG" <<'PY'
 import json, os, sys
 print("yes" if any(x.get("tag")==os.environ["PRIMARY_TAG"] for x in json.load(open(sys.argv[1])).get("outbounds",[])) else "no")
