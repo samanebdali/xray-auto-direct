@@ -1,23 +1,39 @@
 #!/usr/bin/env python3
 """Register a fresh WARP account through Cloudflare's device API as a wgcf fallback."""
 import argparse
+import base64
 import datetime as dt
 import json
 import os
-import subprocess
 import urllib.error
 import urllib.request
 from pathlib import Path
 
-def wg_key(command, data=None):
-    return subprocess.check_output(command, input=data, text=True).strip()
+def x25519_public(private):
+    # RFC 7748 Montgomery ladder; avoids a wireguard-tools dependency.
+    p=(1<<255)-19
+    k=bytearray(private)
+    k[0]&=248; k[31]&=127; k[31]|=64
+    x1=9; x2=1; z2=0; x3=9; z3=1; swap=0
+    for bit in range(254,-1,-1):
+        kt=(k[bit//8] >> (bit&7)) & 1
+        swap ^= kt
+        if swap: x2,x3=x3,x2; z2,z3=z3,z2
+        swap=kt
+        a=(x2+z2)%p; aa=(a*a)%p; b=(x2-z2)%p; bb=(b*b)%p; e=(aa-bb)%p
+        c=(x3+z3)%p; d=(x3-z3)%p; da=(d*a)%p; cb=(c*b)%p
+        x3=((da+cb)*(da+cb))%p; z3=(x1*(da-cb)*(da-cb))%p
+        x2=(aa*bb)%p; z2=(e*(aa+121665*e))%p
+    if swap: x2,x3=x3,x2; z2,z3=z3,z2
+    return (x2*pow(z2,p-2,p))%p
 
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--output", required=True, type=Path)
     args=p.parse_args()
-    private=wg_key(["wg","genkey"])
-    public=wg_key(["wg","pubkey"], private+"\n")
+    private_raw=os.urandom(32)
+    private=base64.b64encode(private_raw).decode()
+    public=base64.b64encode(x25519_public(private_raw).to_bytes(32,"little")).decode()
     body=json.dumps({
         "fcm_token":"",
         "install_id":"",
