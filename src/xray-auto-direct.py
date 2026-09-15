@@ -157,6 +157,22 @@ def direct_patterns(cfg):
     return pats
 
 
+def db_direct_patterns():
+    """Read persisted Direct rules from either supported x-ui storage model."""
+    con=sqlite3.connect(DB)
+    try:
+        has_rules=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='routing_rules'").fetchone()
+        if has_rules:
+            for (raw,) in con.execute("SELECT raw_json FROM routing_rules ORDER BY sort,id"):
+                try: rule=json.loads(raw)
+                except Exception: continue
+                if rule.get('outboundTag')=='direct' and isinstance(rule.get('domain'),list):
+                    return direct_patterns({'routing':{'rules':[rule]}})
+        row=con.execute("SELECT value FROM settings WHERE key='xrayTemplateConfig'").fetchone()
+        return direct_patterns(json.loads(row[0])) if row else []
+    finally:
+        con.close()
+
 def already_direct(host,pats):
     for typ,val in pats:
         if typ=='full' and host==val: return True
@@ -569,9 +585,8 @@ def selftest():
         print('shadow_trace_warp=False'); ok=False
     print('routing_api=',api_alive()); ok &= api_alive()
     try:
-        con=sqlite3.connect(DB); row=con.execute("SELECT value FROM settings WHERE key='xrayTemplateConfig'").fetchone(); con.close()
-        a=json.loads(ACTIVE_CFG.read_text()); b=json.loads(row[0]) if row else {}
-        same=direct_patterns(a)==direct_patterns(b)
+        a=json.loads(ACTIVE_CFG.read_text())
+        same=direct_patterns(a)==db_direct_patterns()
         print('active_db_direct_equal=',same); ok &= same
     except Exception:
         print('active_db_direct_equal=False'); ok=False
