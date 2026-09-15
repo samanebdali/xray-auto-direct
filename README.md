@@ -2,7 +2,7 @@
 
 A safety-first routing controller for Xray deployments that use Cloudflare WARP as the primary outbound and a stable Direct egress as fallback.
 
-> Status: engineering in progress. There is deliberately **no install command yet**: a partial installer was removed rather than leave an unsafe production path. The first public installer will provision every required component and will be released only after clean-server and recovery validation.
+> Status: installer implementation is present, but the first release is not yet certified. Do **not** deploy it to production until clean-server and recovery validation are complete.
 
 ## What it does
 
@@ -13,7 +13,7 @@ A safety-first routing controller for Xray deployments that use Cloudflare WARP 
 - Fails closed: if Shadow WARP is unhealthy, it makes no routing change.
 - Keeps user-defined pinned domains out of probing.
 
-## Policy
+## Installation\n\nThe supported x-ui/Ubuntu installer is one command; it provisions an independent Shadow WARP identity, verifies it, and does not restart production Xray:\n\n\`\`\`bash\ncurl -fsSL https://raw.githubusercontent.com/samanebdali/xray-auto-direct/main/install.sh | sudo bash -s -- --apply\n\`\`\`\n\nSee the complete [English guide](docs/INSTALL.md) and [راهنمای فارسی](docs/README.fa.md).\n\n## Policy
 
 The normal user edit is a policy file:
 
