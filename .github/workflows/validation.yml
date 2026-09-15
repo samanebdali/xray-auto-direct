@@ -1,0 +1,18 @@
+name: validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Python
+        run: python3 -m py_compile src/xray-auto-direct.py install/wgcf_to_shadow.py
+      - name: Test Shadow config generator
+        run: python3 -m unittest discover -s tests -v
+      - name: Validate shell syntax
+        run: bash -n install.sh
