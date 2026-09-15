@@ -5,7 +5,7 @@ set -Eeuo pipefail
 umask 077
 
 REPO="samanebdali/xray-auto-direct"
-RAW="https://raw.githubusercontent.com/$REPO/main"
+RAW=""
 ROOT="/etc/xray-auto-direct"
 LIB="/usr/local/lib/xray-auto-direct"
 STATE="/var/lib/xray-auto-direct"
@@ -17,6 +17,13 @@ note() { echo "==> $*"; }
 trap 'echo "Installation stopped at line $LINENO. Existing production Xray was not restarted." >&2' ERR
 
 [[ $EUID -eq 0 ]] || die "Run as root: sudo bash install.sh"
+# Resolve one immutable commit before fetching any project file. This prevents a
+# CDN race from mixing installer, controller and systemd files from different
+# revisions of main.
+REV="$(curl -fsSL --connect-timeout 10 "https://api.github.com/repos/$REPO/commits/main" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')" ||
+  die "could not resolve the current project revision from GitHub"
+[[ "$REV" =~ ^[0-9a-f]{40}$ ]] || die "GitHub returned an invalid project revision"
+RAW="https://raw.githubusercontent.com/$REPO/$REV"
 case "${1:-}" in
   --dry-run) APPLY=0 ;;
   ""|--apply) ;;
